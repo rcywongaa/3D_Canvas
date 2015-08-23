@@ -5,6 +5,9 @@ using namespace std;
 
 int main( int argc, char** argv )
 {
+    Ptr<ORB> orbDetector;
+    orbDetector = ORB::create();
+    vector<KeyPoint> keypoints;
     VideoCapture cap(0); // open the video camera no. 0
 
     if (!cap.isOpened())  // if not success, exit program
@@ -18,7 +21,8 @@ int main( int argc, char** argv )
 
     cout << "Frame size : " << dWidth << " x " << dHeight << endl;
 
-    namedWindow("MyVideo",CV_WINDOW_AUTOSIZE); //create a window called "MyVideo"
+    namedWindow("MyVideo",CV_WINDOW_AUTOSIZE);
+    namedWindow("Keypoints",CV_WINDOW_AUTOSIZE); 
 
     while (1)
     {
@@ -32,7 +36,12 @@ int main( int argc, char** argv )
             break;
         }
 
+        orbDetector->detect(frame, keypoints);
+        Mat keypointsFrame;
+        drawKeypoints(frame, keypoints, keypointsFrame);
+
         imshow("MyVideo", frame); //show the frame in "MyVideo" window
+        imshow("Keypoints", keypointsFrame); //show the frame in "MyVideo" window
 
         if (waitKey(30) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
         {
