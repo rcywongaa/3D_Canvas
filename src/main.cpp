@@ -5,36 +5,40 @@ using namespace std;
 
 int main( int argc, char** argv )
 {
-    if( argc != 2)
+    VideoCapture cap(0); // open the video camera no. 0
+
+    if (!cap.isOpened())  // if not success, exit program
     {
-        cout <<" Usage: display_image ImageToLoadAndDisplay" << endl;
+        cout << "Cannot open the video cam" << endl;
         return -1;
     }
 
-    Mat image;
-    image = imread(argv[1], CV_LOAD_IMAGE_COLOR);   // Read the file
+    double dWidth = cap.get(CV_CAP_PROP_FRAME_WIDTH); //get the width of frames of the video
+    double dHeight = cap.get(CV_CAP_PROP_FRAME_HEIGHT); //get the height of frames of the video
 
-    if(! image.data )                              // Check for invalid input
+    cout << "Frame size : " << dWidth << " x " << dHeight << endl;
+
+    namedWindow("MyVideo",CV_WINDOW_AUTOSIZE); //create a window called "MyVideo"
+
+    while (1)
     {
-        cout <<  "Could not open or find the image" << std::endl ;
-        return -1;
+        Mat frame;
+
+        bool bSuccess = cap.read(frame); // read a new frame from video
+
+        if (!bSuccess) //if not success, break loop
+        {
+            cout << "Cannot read a frame from video stream" << endl;
+            break;
+        }
+
+        imshow("MyVideo", frame); //show the frame in "MyVideo" window
+
+        if (waitKey(30) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
+        {
+            cout << "esc key is pressed by user" << endl;
+            break; 
+        }
+
     }
-
-    char* imageName = argv[1];
-
-    Mat gray_image;
-    cvtColor( image, gray_image, CV_BGR2GRAY );
-
-//    imwrite( "../Gray_Image.jpg", gray_image );
-
-    namedWindow( imageName, CV_WINDOW_AUTOSIZE );
-    namedWindow( "Gray image", CV_WINDOW_AUTOSIZE );
-
-    imshow( imageName, image );
-    imshow( "Gray image", gray_image );
-
-    cout << "Gray Image =" << endl << gray_image << endl;
-
-    waitKey(0);                                          // Wait for a keystroke in the window
-    return 0;
 }
