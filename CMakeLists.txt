@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project (CV)
+set (PROJECT_DIRECTORY ${PROJECT_SOURCE_DIR})
+configure_file ("inc/config.hpp.in" "inc/config.hpp" )
 include_directories(inc)
 add_subdirectory(src ${PROJECT_SOURCE_DIR}/build)

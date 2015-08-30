@@ -5,3 +5,5 @@
 #include <opencv2/objdetect/objdetect.hpp>
 
 #include <iostream>
+
+#include "config.hpp"
