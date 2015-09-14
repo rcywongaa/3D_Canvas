@@ -1,5 +1,11 @@
 set(proj_src main.cpp)
 
+
 add_executable(CV ${proj_src})
 find_package( OpenCV REQUIRED )
-target_link_libraries( CV ${OpenCV_LIBS} )
+find_package( OpenGL REQUIRED )
+find_package( GLEW REQUIRED )
+find_package( PkgConfig REQUIRED)
+pkg_search_module( GLFW CONFIG REQUIRED glfw3)
+#include_directories( GLFW_INCLUDE_DIRS )
+target_link_libraries( CV ${OpenCV_LIBS} ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES} ${GLFW_STATIC_LIBRARIES})
