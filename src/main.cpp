@@ -2,8 +2,9 @@
 
 #define HEIGHT 480
 #define WIDTH 640
-#define VERTEXSHADERFILE PROJECT_DIRECTORY "/src/VertexShader.cpp"
-#define FRAGMENTSHADERFILE PROJECT_DIRECTORY "/src/FragmentShader.cpp"
+#define VERTEX_SHADER_FILE PROJECT_DIRECTORY "/src/VertexShader.cpp"
+#define FRAGMENT_SHADER_FILE PROJECT_DIRECTORY "/src/FragmentShader.cpp"
+#define POS_ATTR_INDEX 0
 
 using namespace cv;
 using namespace glm;
@@ -136,75 +137,67 @@ int main( int argc, char** argv )
     }
 
     //VertexArrayObject stores the VertexBufferObject and VertexAttribArray settings
-    GLuint VertexArrayID;
-    glGenVertexArrays(1, &VertexArrayID);
-    glBindVertexArray(VertexArrayID);
-    GLfloat g_vertex_buffer_data[] = {
+    GLuint vao_triangle;
+    glGenVertexArrays(1, &vao_triangle);
+    //All following settings modify the vao_triangle VAO
+    glBindVertexArray(vao_triangle);
+    GLfloat triangle_position_data[] = {
         -1.0f, -1.0f, 0.0f,
         1.0f, -1.0f, 0.0f,
         0.0f,  1.0f, 0.0f
     };
-    // This will identify our vertex buffer
-    GLuint vertexbuffer;
-    // Generate 1 buffer, put the resulting identifier in vertexbuffer
-    glGenBuffers(1, &vertexbuffer);
-    // The following commands will talk about our 'vertexbuffer' buffer
-    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    // Give our vertices to OpenGL.
-    glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
-    // 1st attribute buffer : vertices
+    GLuint triangle_position_buffer;
+    glGenBuffers(1, &triangle_position_buffer);
+    // The following commands will talk about our 'triangle_position_buffer' buffer
+    glBindBuffer(GL_ARRAY_BUFFER, triangle_position_buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_position_data), triangle_position_data, GL_STATIC_DRAW);
+    //Configures the interpretation of triangle_position_buffer by vao_triangle
     glVertexAttribPointer(
-        0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
-        3,                  // size
-        GL_FLOAT,           // type
-        GL_FALSE,           // normalized?
-        0,                  // stride
-        (void*)0            // array buffer offset
-    );
+            POS_ATTR_INDEX,  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+            3,                  // size
+            GL_FLOAT,           // type
+            GL_FALSE,           // normalized?
+            0,                  // stride
+            NULL                // array buffer offset
+            );
+    //Use VertexAttribute POS_ATTR_INDEX to interpret data stored in triangle_position_buffer
+    glEnableVertexAttribArray(POS_ATTR_INDEX);
+    //If using VAO, glDisableVertexAttribArray should never be called
+    //Additional buffers & attributes may be required for UV, normal, texture, etc.
+    //glBindVertexArray(0); //Optional, clear vao_triangle binding so we don't accidentally modify it any further
+    //Additional VAOs for other objects may follow
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
-    GLuint programID = LoadShaders( VERTEXSHADERFILE, FRAGMENTSHADERFILE );
-
-    double dWidth = cap.get(CV_CAP_PROP_FRAME_WIDTH); //get the width of frames of the video
-    double dHeight = cap.get(CV_CAP_PROP_FRAME_HEIGHT); //get the height of frames of the video
-
-    cout << "Frame size : " << dWidth << " x " << dHeight << endl;
-
-    //    namedWindow("Keypoints",CV_WINDOW_AUTOSIZE);
+    GLuint programID = LoadShaders( VERTEX_SHADER_FILE, FRAGMENT_SHADER_FILE );
+    // Get a handle for our "MVP" uniform.
+    // Only at initialisation time.
+    GLuint MatrixID = glGetUniformLocation(programID, "MVP");
+    glUseProgram(programID);
+    // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
+    glm::mat4 Projection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
 
     Mat frame;
     Mat grayFrame;
     Mat faceFrame;
     vector<Rect> faces;
-    vector<Rect> eyes;
+    //vector<Rect> eyes;
     while (1)
     {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(programID);
-        glEnableVertexAttribArray(0);
-        glBindVertexArray(VertexArrayID);
-        // Draw the triangle !
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-        glDisableVertexAttribArray(0);
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-
+        /********** OpenCV **********/
         bool bSuccess = cap.read(frame); // read a new frame from video
-
         if (!bSuccess) //if not success, break loop
         {
             cout << "Cannot read a frame from video stream" << endl;
             break;
         }
-
         faceFrame = frame.clone();
         cvtColor(frame, grayFrame, COLOR_BGR2GRAY);
         equalizeHist(grayFrame, grayFrame);
         face_cascade.detectMultiScale(grayFrame, faces);
-
         for (int i = 0; i < faces.size(); i++)
         {
             rectangle(faceFrame, faces[i], Scalar(255, 0, 0));
+/*
             Mat faceROI = frame(faces[i]);
             eyes_cascade.detectMultiScale(faceROI, eyes);
             for (int j = 0; j < eyes.size(); j++)
@@ -213,9 +206,31 @@ int main( int argc, char** argv )
                 Rect eye = eyes[j];
                 rectangle(faceFrame, faceCorner + eye.tl(), faceCorner + eye.br(), Scalar(0, 255, 0));
             }
+*/
         }
-
         imshow("Face", faceFrame);
+
+        /********** OpenGL **********/
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // Camera matrix
+        glm::mat4 View = glm::lookAt(
+            glm::vec3(4,3,3), // Camera
+            glm::vec3(0,0,0), // and looks at the origin
+            glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
+        );
+        // Model matrix : an identity matrix (model will be at the origin)
+        glm::mat4 Model = glm::mat4(1.0f);  // Changes for each model !
+        // Our ModelViewProjection : multiplication of our 3 matrices
+        glm::mat4 MVP = Projection * View * Model; // Remember, matrix multiplication is the other way around
+        // Send our transformation to the currently bound shader,
+        // in the "MVP" uniform
+        // For each model you render, since the MVP will be different (at least the M part)
+        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        //Use data from vao_triangle draw, i.e. pass to shader
+        glBindVertexArray(vao_triangle);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glfwSwapBuffers(window);
+        glfwPollEvents();
 
         if (waitKey(30) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
         {

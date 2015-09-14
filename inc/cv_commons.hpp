@@ -7,6 +7,8 @@
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+ #define GLM_FORCE_RADIANS
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <iostream>
 #include <fstream>
