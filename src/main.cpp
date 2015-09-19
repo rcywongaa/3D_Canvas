@@ -23,7 +23,7 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
     {
         std::string Line = "";
         while(getline(VertexShaderStream, Line))
-        VertexShaderCode += "\n" + Line;
+            VertexShaderCode += "\n" + Line;
         VertexShaderStream.close();
     }
 
@@ -176,13 +176,16 @@ int main( int argc, char** argv )
     // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
     glm::mat4 Projection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
 
-    Mat frame;
-    Mat grayFrame;
-    Mat faceFrame;
-    vector<Rect> faces;
     //vector<Rect> eyes;
     while (1)
     {
+        Mat frame;
+        Mat grayFrame;
+        Mat faceFrame;
+        vector<Rect> faces;
+        Rect max_face = Rect(0, 0, 0, 0);
+        glm::vec2 max_face_center = vec2(0, 0);
+        double max_face_area = 0;
         /********** OpenCV **********/
         bool bSuccess = cap.read(frame); // read a new frame from video
         if (!bSuccess) //if not success, break loop
@@ -194,30 +197,38 @@ int main( int argc, char** argv )
         cvtColor(frame, grayFrame, COLOR_BGR2GRAY);
         equalizeHist(grayFrame, grayFrame);
         face_cascade.detectMultiScale(grayFrame, faces);
-        for (int i = 0; i < faces.size(); i++)
+        for (vector<Rect>::iterator it_face = faces.begin(); it_face != faces.end(); it_face++)
         {
-            rectangle(faceFrame, faces[i], Scalar(255, 0, 0));
-/*
-            Mat faceROI = frame(faces[i]);
-            eyes_cascade.detectMultiScale(faceROI, eyes);
-            for (int j = 0; j < eyes.size(); j++)
+            if (it_face->area() > max_face_area)
             {
-                Point faceCorner = faces[i].tl();
-                Rect eye = eyes[j];
-                rectangle(faceFrame, faceCorner + eye.tl(), faceCorner + eye.br(), Scalar(0, 255, 0));
+                max_face = *it_face;
+                max_face_area = max_face.area();
+                max_face_center = glm::vec2(max_face.x + max_face.width/2, max_face.y + max_face.height/2);
             }
-*/
+            /*
+               Mat faceROI = frame(faces[i]);
+               eyes_cascade.detectMultiScale(faceROI, eyes);
+               for (int j = 0; j < eyes.size(); j++)
+               {
+               Point faceCorner = faces[i].tl();
+               Rect eye = eyes[j];
+               rectangle(faceFrame, faceCorner + eye.tl(), faceCorner + eye.br(), Scalar(0, 255, 0));
+               }
+               */
         }
+        circle(faceFrame, CvPoint(max_face_center.x, max_face_center.y), 5, Scalar(0, 0, 255), -1);
+        rectangle(faceFrame, max_face, Scalar(255, 0, 0));
         imshow("Face", faceFrame);
 
         /********** OpenGL **********/
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         // Camera matrix
         glm::mat4 View = glm::lookAt(
-            glm::vec3(4,3,3), // Camera
-            glm::vec3(0,0,0), // and looks at the origin
-            glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
-        );
+                //Note that the hardware camera flips the world coordinates (it is not a mirror)
+                glm::vec3(-(max_face_center.x - WIDTH/2) / WIDTH * 5, (-(max_face_center.y - HEIGHT/2)) / HEIGHT * 5, 3), // Camera position (4, 3, 3)
+                glm::vec3(0,0,0), // and looks at the origin
+                glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
+                );
         // Model matrix : an identity matrix (model will be at the origin)
         glm::mat4 Model = glm::mat4(1.0f);  // Changes for each model !
         // Our ModelViewProjection : multiplication of our 3 matrices
