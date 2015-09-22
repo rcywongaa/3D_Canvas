@@ -136,6 +136,11 @@ int main( int argc, char** argv )
         return -1;
     }
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
     //VertexArrayObject stores the VertexBufferObject and VertexAttribArray settings
     GLuint vao_triangle;
     glGenVertexArrays(1, &vao_triangle);
@@ -166,6 +171,45 @@ int main( int argc, char** argv )
     //Additional buffers & attributes may be required for UV, normal, texture, etc.
     //glBindVertexArray(0); //Optional, clear vao_triangle binding so we don't accidentally modify it any further
     //Additional VAOs for other objects may follow
+    GLuint vao_cube;
+    glGenVertexArrays(1, &vao_cube);
+    glBindVertexArray(vao_cube);
+    GLfloat cube_position_data[] = {
+        -0.5f, -0.5f, -0.5f,
+        -0.5f, -0.5f, 0.5f,
+        -0.5f, 0.5f, -0.5f,
+        -0.5f, 0.5f, 0.5f,
+        0.5f, -0.5f, -0.5f,
+        0.5f, -0.5f, 0.5f,
+        0.5f, 0.5f, -0.5f,
+        0.5f, 0.5f, 0.5f
+    };
+    GLuint cube_position_buffer;
+    glGenBuffers(1, &cube_position_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, cube_position_buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_position_data), cube_position_data, GL_STATIC_DRAW);
+    glVertexAttribPointer(POS_ATTR_INDEX, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+    glEnableVertexAttribArray(POS_ATTR_INDEX);
+    GLuint cube_index_data[] = {
+        1, 2, 0,
+        1, 2, 3,
+        3, 5, 1,
+        3, 5, 7,
+        4, 7, 5,
+        4, 7, 6,
+        0, 6, 4,
+        0, 6, 2,
+        3, 6, 2,
+        3, 6, 7,
+        1, 4, 0,
+        1, 4, 5
+
+    };
+    GLuint cube_index_buffer;
+    glGenBuffers(1, &cube_index_buffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_index_buffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_index_data), cube_index_data, GL_STATIC_DRAW);
+
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
     GLuint programID = LoadShaders( VERTEX_SHADER_FILE, FRAGMENT_SHADER_FILE );
@@ -240,6 +284,10 @@ int main( int argc, char** argv )
         //Use data from vao_triangle draw, i.e. pass to shader
         glBindVertexArray(vao_triangle);
         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Apply other MVP for other objects
+        glBindVertexArray(vao_cube);
+        glDrawElements(GL_TRIANGLES, sizeof(cube_index_data)/sizeof(cube_index_data[0]), GL_UNSIGNED_INT, NULL);
         glfwSwapBuffers(window);
         glfwPollEvents();
 
