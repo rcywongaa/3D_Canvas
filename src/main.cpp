@@ -95,8 +95,9 @@ int main( int argc, char** argv )
     vector<KeyPoint> keypoints;
     VideoCapture cap(0); // open the video camera no. 0
 
-    String face_cascade_name = String(PROJECT_DIRECTORY) + String("/data/haarcascades/haarcascade_frontalface_alt.xml");
+    //String face_cascade_name = String(PROJECT_DIRECTORY) + String("/data/haarcascades/haarcascade_frontalface_alt.xml");
     String eyes_cascade_name = String(PROJECT_DIRECTORY) + String("/data/haarcascades/haarcascade_eye_tree_eyeglasses.xml");
+    String face_cascade_name = String(PROJECT_DIRECTORY) + String("/data/lbpcascades/lbpcascade_frontalface.xml");
     CascadeClassifier face_cascade;
     CascadeClassifier eyes_cascade;
     if( !face_cascade.load( face_cascade_name ) ){ printf("--(!)Error loading %s\n", face_cascade_name.c_str()); return -1; };
@@ -220,6 +221,9 @@ int main( int argc, char** argv )
     // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
     glm::mat4 Projection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
 
+    Rect max_face = Rect(0, 0, 0, 0);
+    glm::vec2 max_face_center = vec2(0, 0);
+    double max_face_area = 0;
     //vector<Rect> eyes;
     while (1)
     {
@@ -227,9 +231,6 @@ int main( int argc, char** argv )
         Mat grayFrame;
         Mat faceFrame;
         vector<Rect> faces;
-        Rect max_face = Rect(0, 0, 0, 0);
-        glm::vec2 max_face_center = vec2(0, 0);
-        double max_face_area = 0;
         /********** OpenCV **********/
         bool bSuccess = cap.read(frame); // read a new frame from video
         if (!bSuccess) //if not success, break loop
@@ -241,6 +242,13 @@ int main( int argc, char** argv )
         cvtColor(frame, grayFrame, COLOR_BGR2GRAY);
         equalizeHist(grayFrame, grayFrame);
         face_cascade.detectMultiScale(grayFrame, faces);
+        if (!faces.empty())
+        {
+            max_face = Rect(0, 0, 0, 0);
+            max_face_center = vec2(0, 0);
+            max_face_area = 0;
+        }
+
         for (vector<Rect>::iterator it_face = faces.begin(); it_face != faces.end(); it_face++)
         {
             if (it_face->area() > max_face_area)
