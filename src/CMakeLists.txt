@@ -1,5 +1,4 @@
-set(proj_src main.cpp)
-
+set(proj_src main.cpp gl_commons.cpp)
 
 add_executable(CV ${proj_src})
 find_package( OpenCV REQUIRED )
