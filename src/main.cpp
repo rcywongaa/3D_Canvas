@@ -6,8 +6,8 @@
 
 #define HEIGHT 480
 #define WIDTH 640
-#define VERTEX_SHADER_FILE PROJECT_DIRECTORY "/src/VertexShader.cpp"
-#define FRAGMENT_SHADER_FILE PROJECT_DIRECTORY "/src/FragmentShader.cpp"
+#define VERTEX_SHADER_FILE PROJECT_DIRECTORY "/src/VertexShader.glsl"
+#define FRAGMENT_SHADER_FILE PROJECT_DIRECTORY "/src/FragmentShader.glsl"
 #define POS_ATTR_INDEX 0
 #define SAMPLE_MODEL "/models/cornell_box.obj"
 
