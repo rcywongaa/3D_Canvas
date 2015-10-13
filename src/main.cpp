@@ -1,11 +1,15 @@
 #include "cv_commons.hpp"
 #include "gl_commons.hpp"
+#include "Vao.hpp"
+
+#include <boost/ptr_container/ptr_vector.hpp>
 
 #define HEIGHT 480
 #define WIDTH 640
 #define VERTEX_SHADER_FILE PROJECT_DIRECTORY "/src/VertexShader.cpp"
 #define FRAGMENT_SHADER_FILE PROJECT_DIRECTORY "/src/FragmentShader.cpp"
 #define POS_ATTR_INDEX 0
+#define SAMPLE_MODEL "/models/cornell_box.obj"
 
 using namespace cv;
 using namespace glm;
@@ -15,7 +19,6 @@ using namespace std;
 int main( int argc, char** argv )
 {
     //cout << getBuildInformation() << endl;
-    GLenum err;
     Ptr<ORB> orbDetector;
     orbDetector = ORB::create();
     vector<KeyPoint> keypoints;
@@ -68,75 +71,61 @@ int main( int argc, char** argv )
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
-    //VertexArrayObject stores the VertexBufferObject and VertexAttribArray settings
-    GLuint vao_triangle;
-    glGenVertexArrays(1, &vao_triangle);
-    //All following settings modify the vao_triangle VAO
-    glBindVertexArray(vao_triangle);
-    GLfloat triangle_position_data[] = {
+    std::vector<GLfloat> triangle_position_data = {
         -1.0f, -1.0f, 0.0f,
         1.0f, -1.0f, 0.0f,
         0.0f,  1.0f, 0.0f
     };
-    GLuint triangle_position_buffer;
-    glGenBuffers(1, &triangle_position_buffer);
-    // The following commands will talk about our 'triangle_position_buffer' buffer
-    glBindBuffer(GL_ARRAY_BUFFER, triangle_position_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_position_data), triangle_position_data, GL_STATIC_DRAW);
-    //Configures the interpretation of triangle_position_buffer by vao_triangle
-    glVertexAttribPointer(
-            POS_ATTR_INDEX,  // attribute 0. No particular reason for 0, but must match the layout in the shader.
-            3,                  // size
-            GL_FLOAT,           // type
-            GL_FALSE,           // normalized?
-            0,                  // stride
-            NULL                // array buffer offset
-            );
-    //Use VertexAttribute POS_ATTR_INDEX to interpret data stored in triangle_position_buffer
-    glEnableVertexAttribArray(POS_ATTR_INDEX);
-    //If using VAO, glDisableVertexAttribArray should never be called
-    //Additional buffers & attributes may be required for UV, normal, texture, etc.
-    //glBindVertexArray(0); //Optional, clear vao_triangle binding so we don't accidentally modify it any further
-    //Additional VAOs for other objects may follow
-    GLuint vao_cube;
-    glGenVertexArrays(1, &vao_cube);
-    glBindVertexArray(vao_cube);
-    GLfloat cube_position_data[] = {
-        -0.5f, -0.5f, -0.5f,
-        -0.5f, -0.5f, 0.5f,
-        -0.5f, 0.5f, -0.5f,
-        -0.5f, 0.5f, 0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, 0.5f,
-        0.5f, 0.5f, -0.5f,
-        0.5f, 0.5f, 0.5f
-    };
-    GLuint cube_position_buffer;
-    glGenBuffers(1, &cube_position_buffer);
-    glBindBuffer(GL_ARRAY_BUFFER, cube_position_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_position_data), cube_position_data, GL_STATIC_DRAW);
-    glVertexAttribPointer(POS_ATTR_INDEX, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-    glEnableVertexAttribArray(POS_ATTR_INDEX);
-    GLuint cube_index_data[] = {
-        1, 2, 0,
-        1, 2, 3,
-        3, 5, 1,
-        3, 5, 7,
-        4, 7, 5,
-        4, 7, 6,
-        0, 6, 4,
-        0, 6, 2,
-        3, 6, 2,
-        3, 6, 7,
-        1, 4, 0,
-        1, 4, 5
+    Vao* triangle = new Vao();
+    triangle->init(triangle_position_data);
 
-    };
-    GLuint cube_index_buffer;
-    glGenBuffers(1, &cube_index_buffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_index_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_index_data), cube_index_data, GL_STATIC_DRAW);
-
+    String model_file = String(PROJECT_DIRECTORY) + String(SAMPLE_MODEL);
+    if (argc == 2)
+    {
+        printf("Input model: %s\n", argv[1]);
+        model_file = argv[1];
+    }
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(model_file,
+            aiProcess_CalcTangentSpace |
+            aiProcess_Triangulate |
+            aiProcess_GenNormals |
+            aiProcess_JoinIdenticalVertices |
+            aiProcess_SortByPType);
+    if (!scene)
+    {
+        cout << importer.GetErrorString() << endl;
+        return -1;
+    }
+    boost::ptr_vector<Vao> meshes;
+    for (unsigned int i = 0; i < scene->mNumMeshes; i++)
+    {
+        aiMesh* mesh = scene->mMeshes[i];
+        std::vector<GLfloat> positions;
+        for (unsigned int j = 0; j < mesh->mNumVertices; j++)
+        {
+            aiVector3D vert = mesh->mVertices[j];
+            positions.push_back(vert.x);
+            positions.push_back(vert.y);
+            positions.push_back(vert.z);
+            //printf("(%f, %f, %f)\n", vert.x, vert.y, vert.z);
+        }
+        std::vector<GLuint> indices;
+        for (unsigned int j = 0; j < mesh->mNumFaces; j++)
+        {
+            aiFace face = mesh->mFaces[j];
+            for (unsigned int k = 0; k < face.mNumIndices; k++)
+            {
+                //printf("Indice = %d\n", face.mIndices[k]);
+                indices.push_back(face.mIndices[k]);
+            }
+        }
+        Vao* vao = new Vao();
+        vao->init(positions, indices);
+        meshes.push_back(vao);
+        printf("Primitive Type = %d, # of vertices = %d, # of faces = %d, # of indices = %ld\n",
+                mesh->mPrimitiveTypes, mesh->mNumVertices, mesh->mNumFaces, indices.size());
+    }
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
     GLuint programID = LoadShaders( VERTEX_SHADER_FILE, FRAGMENT_SHADER_FILE );
@@ -203,7 +192,8 @@ int main( int argc, char** argv )
         // Camera matrix
         glm::mat4 View = glm::lookAt(
                 //Note that the hardware camera flips the world coordinates (it is not a mirror)
-                glm::vec3(-(max_face_center.x - WIDTH/2) / WIDTH * 5, (-(max_face_center.y - HEIGHT/2)) / HEIGHT * 5, 3), // Camera position (4, 3, 3)
+                //TODO: Make z coordinates proportional to model size
+                glm::vec3(-(max_face_center.x - WIDTH/2) / WIDTH * 5, (-(max_face_center.y - HEIGHT/2)) / HEIGHT * 5, 10), // Camera position (4, 3, 3)
                 glm::vec3(0,0,0), // and looks at the origin
                 glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
                 );
@@ -216,12 +206,13 @@ int main( int argc, char** argv )
         // For each model you render, since the MVP will be different (at least the M part)
         glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
         //Use data from vao_triangle draw, i.e. pass to shader
-        glBindVertexArray(vao_triangle);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        //triangle->draw();
 
         // Apply other MVP for other objects
-        glBindVertexArray(vao_cube);
-        glDrawElements(GL_TRIANGLES, sizeof(cube_index_data)/sizeof(cube_index_data[0]), GL_UNSIGNED_INT, NULL);
+        for (unsigned int i = 0; i < meshes.size(); i++)
+        {
+            meshes[i].draw();
+        }
         glfwSwapBuffers(window);
         glfwPollEvents();
 
