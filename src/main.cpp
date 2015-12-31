@@ -192,6 +192,48 @@ int main( int argc, char** argv )
     glm::vec2 max_face_center = vec2(0, 0);
     double max_face_area = 0;
     //vector<Rect> eyes;
+
+#ifdef OPENCL
+    cl_platform_id platform_id;
+    cl_uint num_platforms;
+    cl_char vendor_info[1024] = "NULL";
+    cl_device_id device_id;
+    cl_uint num_devices;
+    cl_char device_info[1024] = "NULL";
+    cl_char extensions[1024] = "NULL";
+    cl_context context;
+    cl_int err;
+    cl_program program;
+    clGetPlatformIDs(1, &platform_id, &num_platforms);
+    clGetPlatformInfo(platform_id, CL_PLATFORM_VENDOR, sizeof(vendor_info), &vendor_info, NULL);
+    printf("Platform #%u(%s) out of %u platforms\n", platform_id, vendor_info, num_platforms);
+    clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &num_devices);
+    clGetDeviceInfo(device_id, CL_DEVICE_NAME, sizeof(device_info), &device_info, NULL);
+    clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, sizeof(extensions), &extensions, NULL);
+    printf("Device #%u(%s) out of %u devices\n", device_id, device_info, num_devices);
+    //printf("Supported extensions: %s\n", extensions);
+
+   // Create the properties for this context.
+    cl_context_properties context_properties[] = {
+        // We need to add information about the OpenGL context with
+        // which we want to exchange information with the OpenCL context.
+        #if defined (WIN32)
+        // We should first check for cl_khr_gl_sharing extension.
+        CL_GL_CONTEXT_KHR , (cl_context_properties) wglGetCurrentContext() ,
+        CL_WGL_HDC_KHR , (cl_context_properties) wglGetCurrentDC() ,
+        #elif defined (__linux__)
+        // We should first check for cl_khr_gl_sharing extension.
+        CL_GL_CONTEXT_KHR , (cl_context_properties) glXGetCurrentContext() ,
+        CL_GLX_DISPLAY_KHR , (cl_context_properties) glXGetCurrentDisplay() ,
+        #endif
+        CL_CONTEXT_PLATFORM , (cl_context_properties) platform_id,
+        0 , 0 ,
+    };
+
+    context = clCreateContext(context_properties, 1, &device_id, NULL, NULL, &err);
+    printf("Create shared context %s\n", err == CL_SUCCESS ? "SUCCESS" : "FAIL");
+#endif
+
     while (1)
     {
         Mat frame;

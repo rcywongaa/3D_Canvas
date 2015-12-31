@@ -1,6 +1,8 @@
 #ifndef GL_COMMONS_HPP
 #define GL_COMMONS_HPP
 
+#define OPENCL
+
 #include <GL/glew.h>
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
@@ -8,6 +10,13 @@
 #define GLM_FORCE_RADIANS
 #include <glm/gtc/matrix_transform.hpp>
  
+#ifdef OPENCL
+#include <GL/glx.h>
+//#include "CL/cl.hpp" //Use when released
+#include "CL/cl.h"
+#include "CL/cl_gl.h"
+#endif
+
 #include <iostream>
 #include <fstream>
 #include <vector>

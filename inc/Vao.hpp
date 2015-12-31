@@ -30,6 +30,7 @@ class Vao
         bool is_light_;
 
     public:
+        //static array for holding ALL data to pass to OpenCL
         static const GLuint POS_ATTR_INDEX = 0;
         static const GLuint UV_ATTR_INDEX = 1;
         static const GLuint NORMAL_ATTR_INDEX = 2;
