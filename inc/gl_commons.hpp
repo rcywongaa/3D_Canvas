@@ -18,6 +18,8 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+#define EPSILON 1e-5
+
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path);
 
 #endif

@@ -9,7 +9,7 @@
 #define VERTEX_SHADER_FILE PROJECT_DIRECTORY "/src/VertexShader.glsl"
 #define FRAGMENT_SHADER_FILE PROJECT_DIRECTORY "/src/FragmentShader.glsl"
 #define POS_ATTR_INDEX 0
-#define SAMPLE_MODEL "/models/cornell_box.obj"
+#define SAMPLE_MODEL "/models/CornellBox/CornellBox-Original.obj"
 
 using namespace cv;
 using namespace glm;
@@ -71,6 +71,8 @@ int main( int argc, char** argv )
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
+    GLuint shader_id = LoadShaders( VERTEX_SHADER_FILE, FRAGMENT_SHADER_FILE );
+
     std::vector<GLfloat> triangle_position_data = {
         -1.0f, -1.0f, 0.0f,
         1.0f, -1.0f, 0.0f,
@@ -97,17 +99,28 @@ int main( int argc, char** argv )
         cout << importer.GetErrorString() << endl;
         return -1;
     }
+    printf("# of materials = %d, # of lights = %d\n", scene->mNumMaterials, scene->mNumLights);
     boost::ptr_vector<Vao> meshes;
+    boost::ptr_vector<Vao> lights;
     for (unsigned int i = 0; i < scene->mNumMeshes; i++)
     {
         aiMesh* mesh = scene->mMeshes[i];
         std::vector<GLfloat> positions;
+        std::vector<GLfloat> normals;
+        aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
         for (unsigned int j = 0; j < mesh->mNumVertices; j++)
         {
             aiVector3D vert = mesh->mVertices[j];
             positions.push_back(vert.x);
             positions.push_back(vert.y);
             positions.push_back(vert.z);
+            if (mesh->mNormals != NULL)
+            {
+                aiVector3D normal = mesh->mNormals[j];
+                normals.push_back(normal.x);
+                normals.push_back(normal.y);
+                normals.push_back(normal.z);
+            }
             //printf("(%f, %f, %f)\n", vert.x, vert.y, vert.z);
         }
         std::vector<GLuint> indices;
@@ -121,20 +134,59 @@ int main( int argc, char** argv )
             }
         }
         Vao* vao = new Vao();
-        vao->init(positions, indices);
-        meshes.push_back(vao);
-        printf("Primitive Type = %d, # of vertices = %d, # of faces = %d, # of indices = %ld\n",
-                mesh->mPrimitiveTypes, mesh->mNumVertices, mesh->mNumFaces, indices.size());
+        aiColor3D kd;
+        material->Get(AI_MATKEY_COLOR_DIFFUSE, kd);
+        aiColor3D ks;
+        material->Get(AI_MATKEY_COLOR_SPECULAR, ks);
+        aiColor3D ka;
+        material->Get(AI_MATKEY_COLOR_AMBIENT, ka);
+        aiColor3D ke;
+        material->Get(AI_MATKEY_COLOR_EMISSIVE, ke);
+        GLfloat shininess;
+        material->Get(AI_MATKEY_SHININESS, shininess);
+        shininess /= 4.0f; //Assimp bug
+        aiString name;
+        material->Get(AI_MATKEY_NAME, name);
+        vao->init(positions, indices, normals);
+        vao->set_shader(shader_id);
+        vao->set_ambient(ka.r, ka.g, ka.b);
+        vao->set_diffuse(kd.r, kd.g, kd.b);
+        vao->set_specular(ks.r, ks.g, ks.b, shininess);
+        vao->set_emissive(ke.r, ke.g, ke.b);
+        if (vao->is_light()) lights.push_back(vao);
+        else meshes.push_back(vao);
+        //Beware of non-ASCII or whitespace messing up mtl
+        printf("Mesh %d: Primitive Type = %d, # of vertices = %d, # of faces = %d\n",
+                i, mesh->mPrimitiveTypes, mesh->mNumVertices, mesh->mNumFaces);
+        printf("mtl #%d - %s: ka = (%f,%f,%f), kd = (%f,%f,%f), ks = (%f,%f,%f), ke = (%f,%f,%f), shininess = %f\n",
+                mesh->mMaterialIndex, name.C_Str(), ka.r, ka.g, ka.b, kd.r, kd.g, kd.b, ks.r, ks.g, ks.b, ke.r, ke.g, ke.b, shininess);
+    }
+
+    if (lights.size() == 0)
+    {
+        vector<GLfloat> light_position;
+        light_position.push_back(1.0f);
+        light_position.push_back(2.0f);
+        light_position.push_back(3.0f);
+        GLfloat light_color[3] = {1.0f, 1.0f, 1.0f};
+        printf("No lights, creating one at (%f, %f, %f)\n", light_position[0], light_position[1], light_position[2]);
+        Vao* light = new Vao();
+        light->init(light_position);
+        light->set_shader(shader_id);
+        light->set_emissive(light_color[0], light_color[1], light_color[2]);
+        lights.push_back(light);
     }
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
-    GLuint programID = LoadShaders( VERTEX_SHADER_FILE, FRAGMENT_SHADER_FILE );
-    // Get a handle for our "MVP" uniform.
-    // Only at initialisation time.
-    GLuint MatrixID = glGetUniformLocation(programID, "MVP");
-    glUseProgram(programID);
+
+    // Get a handle for our "MVP" uniform at initialisation time.
+    GLuint mvp_id = glGetUniformLocation(shader_id, "MVP");
+    GLuint eye_position_id = glGetUniformLocation(shader_id, "eye_position");
+    glUseProgram(shader_id);
+
     // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
     glm::mat4 Projection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
+    glm::vec3 eye_position = glm::vec3(0, 0, 5);
 
     Rect max_face = Rect(0, 0, 0, 0);
     glm::vec2 max_face_center = vec2(0, 0);
@@ -189,11 +241,12 @@ int main( int argc, char** argv )
 
         /********** OpenGL **********/
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        eye_position = vec3(-(max_face_center.x - WIDTH/2) / WIDTH * 5, (-(max_face_center.y - HEIGHT/2)) / HEIGHT * 5, 5);
         // Camera matrix
         glm::mat4 View = glm::lookAt(
                 //Note that the hardware camera flips the world coordinates (it is not a mirror)
                 //TODO: Make z coordinates proportional to model size
-                glm::vec3(-(max_face_center.x - WIDTH/2) / WIDTH * 5, (-(max_face_center.y - HEIGHT/2)) / HEIGHT * 5, 10), // Camera position (4, 3, 3)
+                eye_position, // Camera position (4, 3, 3)
                 glm::vec3(0,0,0), // and looks at the origin
                 glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
                 );
@@ -204,15 +257,21 @@ int main( int argc, char** argv )
         // Send our transformation to the currently bound shader,
         // in the "MVP" uniform
         // For each model you render, since the MVP will be different (at least the M part)
-        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-        //Use data from vao_triangle draw, i.e. pass to shader
-        //triangle->draw();
+        glUniformMatrix4fv(mvp_id, 1, GL_FALSE, &MVP[0][0]);
+        glUniform3fv(eye_position_id, 1, &eye_position[0]);
 
-        // Apply other MVP for other objects
-        for (unsigned int i = 0; i < meshes.size(); i++)
+        if (lights.size() == 1)
         {
-            meshes[i].draw();
+            //TODO: Render lightsource one by one
+            lights[0].draw();
+            // Apply other MVP for other objects
+            for (unsigned int i = 0; i < meshes.size(); i++)
+            {
+                meshes[i].draw();
+            }
         }
+        else printf("Only single light source is supported...\n");
+
         glfwSwapBuffers(window);
         glfwPollEvents();
 
