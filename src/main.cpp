@@ -8,7 +8,6 @@
 #define WIDTH 640
 #define VERTEX_SHADER_FILE PROJECT_DIRECTORY "/src/VertexShader.glsl"
 #define FRAGMENT_SHADER_FILE PROJECT_DIRECTORY "/src/FragmentShader.glsl"
-#define POS_ATTR_INDEX 0
 #define SAMPLE_MODEL "/models/CornellBox/CornellBox-Original.obj"
 
 using namespace cv;
